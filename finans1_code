@@ -1,0 +1,271 @@
+# The following R code is edited and written by Linus Juni.
+# For clarification:
+# A long line of #'s is indicated to mark a new section
+# A double ## is indicated as a title for the section
+# A single # is for smaller comments
+
+###########################################################################
+## First, let's set a seed
+seed_text <- "project one trading with etfs"
+set.seed(sum(utf8ToInt(seed_text)))
+
+###########################################################################
+## Set the working directory
+setwd("~/Documents/General Engineering/3. Semester/Statistics/finans1")
+
+###########################################################################
+## Read data into R
+
+# Read data from finans1_data.csv
+D <- read.table("finans1_data.csv", header=TRUE, sep=";", as.is=TRUE)
+
+# Keep only the dates and the ETFs AGG, VAW, IWN, and SPY
+D <- D[ ,c("t","AGG","VAW","IWN","SPY")]
+
+###########################################################################
+## Simple overview of the data
+
+# Dimensions of D (number of rows and columns)
+dim(D)
+
+#  Column/variable names
+names(D)
+
+# The first rows/observations
+head(D)
+
+# The last rows/observations
+tail(D)
+
+# Selected summary statistics
+summary(D)
+
+# Another type of summary of the dataset
+str(D)
+
+# Check that element [2,2] is in fact numeric
+is.numeric(D[2,2])
+
+## Check for missing values
+# We check the following columns
+columns_to_check <- c("t", "AGG", "VAW", "IWN", "SPY")
+
+# Initialize a flag to check if any missing values are found
+missing_found <- FALSE
+
+# Use a for loop to check for missing values in each column
+for (col_name in columns_to_check) {
+  missing_indices <- which(is.na(D[[col_name]]))
+  if (length(missing_indices) > 0) {
+    cat("Missing values in", col_name, "at indices:", missing_indices, "\n")
+    missing_found <- TRUE
+  }
+}
+
+# If no missing values are found, print a message
+if (!missing_found) {
+  cat("There are no missing values in the ETF columns")
+}
+
+###########################################################################
+## Histogram (empirical density)
+
+# Histogram describing the empirical density of the weekly returns from
+# AGG (histogram of weekly returns normalized to have an area of 1)
+hist(D$AGG, xlab = "Return (AGG)", prob = TRUE, col = "skyblue", breaks = 20)
+
+###########################################################################
+## Conversion to a date variable
+
+## Converts the variable 't' to a date variable in R
+D$t <- as.Date(x=D$t, format="%Y-%m-%d")
+## Checks the result
+summary(D$t)
+
+
+###########################################################################
+## Plots of data over time
+
+# Plots of weekly return over time for each of the four ETFs
+ylim <- c(-0.2,0.2)
+# Plot of weekly return over time for AGG
+plot(D$t, D$AGG, type="l", ylim=ylim, xlab="Date", ylab="Return AGG", main = "Weekly Returns for AGG Over Time")
+# Similar plots for the three other ETFs
+plot(D$t, D$SPY, type="l", ylim=ylim, xlab="Date", ylab="Return SPY", main = "Weekly Returns for SPY Over Time")
+plot(D$t, D$VAW, type="l", ylim=ylim, xlab="Date", ylab="Return VAW", main = "Weekly Returns for VAW Over Time")
+plot(D$t, D$IWN, type="l", ylim=ylim, xlab="Date", ylab="Return IWN", main = "Weekly Returns for IWN Over Time")
+
+###########################################################################
+## Box plot
+
+# Box plot of weekly returns by ETF
+boxplot(D$AGG, D$VAW, D$IWN, D$SPY, names=c("AGG", "VAW", "IWN", "SPY"),
+        xlab="ETF", ylab="Return")
+
+# Define the data and labels
+data_list <- list(D$AGG, D$VAW, D$IWN, D$SPY)
+labels <- c("AGG", "VAW", "IWN", "SPY")
+
+# Define colors for the boxplots
+boxplot_colors <- c("grey", "blue", "skyblue", "aquamarine")
+
+# Create the boxplots with different colors
+boxplot(data_list, names = labels, xlab = "ETF", ylab = "Return", col = boxplot_colors, main = "Boxplots for weekly returns by ETF")
+
+# Add a read dotted line through return = 0
+abline(h = 0, lty = 2, col = "red")
+
+###########################################################################
+## Summary statistics for weekly AGG returns
+
+# There are no missing values, so no need to carry about that
+# Create a list of data series
+lst <- list(D$AGG, D$VAW, D$IWN, D$SPY)
+
+# Initialize empty vectors to store the statistics
+means <- numeric(length(lst))
+vars <- numeric(length(lst))
+sds <- numeric(length(lst))
+lowers <- numeric(length(lst))
+medians <- numeric(length(lst))
+uppers <- numeric(length(lst))
+
+# Loop through the list and calculate the statistics of each element
+for (i in seq_along(lst)) {
+  means[i] <- mean(lst[[i]])
+  vars[i] <- var(lst[[i]])
+  sds[i] <- sd(lst[[i]])
+  lowers[i] <- quantile(lst[[i]], 0.25)
+  medians[i] <- median(lst[[i]])
+  uppers[i] <- quantile(lst[[i]], 0.75)
+}
+
+# Show the values in console
+means
+vars
+sds
+lowers
+medians
+uppers
+
+###########################################################################
+## qq-plot for model validation
+
+# 4 different ones
+qqnorm(D$AGG)
+qqline(D$AGG)
+
+qqnorm(D$VAW)
+qqline(D$VAW)
+
+qqnorm(D$SPY)
+qqline(D$SPY)
+
+qqnorm(D$IWN)
+qqline(D$IWN)
+
+###########################################################################
+## Confidence interval for the mean
+
+# An empty list
+conf_list <- list()
+
+# Loop through the data vectors and perform t-tests
+for (data in lst) {
+  t_test_result <- t.test(data, conf.level = 0.95)$conf.int
+  conf_list <- append(conf_list, list(t_test_result))
+}
+
+# Show the confidence intervals
+for (i in 1:length(conf_list)) {
+  cat("Confidence interval for dataset", i, ":", conf_list[[i]], "\n")
+}
+
+# By "hand". First we define the following
+alpha <- 0.05
+df <- length(D$AGG) - 1
+t_value <- qt(1 - alpha/2, df)
+
+# Sample data
+x_bar <- mean(D$AGG)
+s <-  sd(D$AGG)
+n <-  length(D$AGG)
+
+# Calculate the confidence interval
+lower_bound <- x_bar - t_value * (s / sqrt(n))
+upper_bound <- x_bar + t_value * (s / sqrt(n))
+
+# Print the confidence interval
+cat("Confidence Interval: (", lower_bound, ", ", upper_bound, ")\n")
+
+
+###########################################################################
+## One-sample t-test
+# Testing the hypothesis mu=0 for weekly AGG returns
+
+# Calculating the test statistic
+t_obs = (mean(D$AGG) - 0) / (sd(D$AGG) / sqrt(length(D$AGG))) 
+t_obs
+
+# Calculating the p-value
+p = (1 - pt(t_obs, length(D$AGG)-1))*2
+p
+
+# Or simply using R
+t.test(D$AGG, mu=0)$p.value
+
+###########################################################################
+## Welch t-test for comparing two (independent) samples
+
+# Using R
+t.test(D$VAW, D$AGG)
+
+# By "hand"
+# Welch's t-test statistic
+t_obs <- (mean(D$VAW) - mean(D$AGG)) / sqrt((var(D$VAW)/length(D$VAW)) + (var(D$AGG)/length(D$AGG)))
+t_obs
+
+# Degrees of freedom
+numerator_df <- ((var(D$VAW)/length(D$VAW)) + (var(D$AGG)/length(D$AGG)))^2
+denominator_df <- ((var(D$VAW)/length(D$VAW))^2/(length(D$VAW) - 1)) + ((var(D$AGG)/length(D$AGG))^2/(length(D$AGG) - 1))
+
+# Combined degrees of freedom
+df <- numerator_df / denominator_df
+df
+
+# p-value
+p <- (1 - pt(t_obs, df))*2
+p
+
+###########################################################################
+## Computing correlations
+
+# Computing the correlation between selected ETFs
+cor(D[ ,c("AGG","VAW","IWN","SPY")], use="pairwise.complete.obs")
+
+# By "hand"
+n <- length(D$VAW)
+
+# Calculate sample means
+mean_VAW <- mean(D$VAW)
+mean_IWN <- mean(D$IWN)
+
+# Calculate sample covariance
+s_xy <- (1 / (n - 1)) * sum((D$VAW - mean_VAW) * (D$IWN - mean_IWN))
+
+# Calculate sample standard deviations
+s_x <- sqrt((1 / (n - 1)) * sum((D$VAW - mean_VAW)^2))
+s_y <- sqrt((1 / (n - 1)) * sum((D$IWN - mean_IWN)^2))
+
+# Calculate the sample correlation coefficient
+r <- s_xy / (s_x * s_y)
+r
+
+# Create a scatter plot
+plot(D$VAW, D$IWN, xlab = "VAW", ylab = "IWN", main = "Scatter Plot of VAW vs. IWN", pch = 19, col = "skyblue", cex = 0.5)
+
+# Add a grid
+grid()
+
+# Add a trendline
+abline(lm(D$IWN ~ D$VAW), col = "grey")
