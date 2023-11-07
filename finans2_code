@@ -1,0 +1,176 @@
+require(MESS)
+
+## First, let's set a seed
+seed_text <- "project one trading with etfs"
+set.seed(sum(utf8ToInt(seed_text)))
+
+## Set the working directory
+setwd("~/Documents/General Engineering/3. Semester/Statistics/finans2")
+
+# Read the dataset 'finans2_data.csv' into R
+D <- read.table("finans2_data.csv", header = TRUE, sep = ";")
+
+################################################################################
+
+# Summary statistics
+str(D)
+summary(D)
+names(D)
+dim(D)
+
+# Check for missing values
+columns_to_check <- c("ETF", "Geo.mean", "Volatility", "maxTuW")
+
+# Initialize a flag to check if any missing values are found
+missing_found <- FALSE
+
+# Use a for loop to check for missing values in each column
+for (col_name in columns_to_check) {
+  missing_indices <- which(is.na(D[[col_name]]))
+  if (length(missing_indices) > 0) {
+    cat("Missing values in", col_name, "at indices:", missing_indices, "\n")
+    missing_found <- TRUE
+  }
+}
+
+# If no missing values are found, print a message
+if (!missing_found) {
+  cat("There are no missing values in the ETF columns")
+}
+
+# Standard deviations
+variables <- c("Geo.mean", "Volatility", "maxTuW")
+
+for (variable in variables) {
+  std_dev <- sd(D[[variable]])
+  print(paste("Standard Deviation of", variable, ":", std_dev))
+}
+
+# Scatter plot: Volatility vs Geo.mean
+plot(D$Volatility, D$Geo.mean, main = "Scatter plot: Volatility vs Geo.mean", xlab = "Volatility", ylab = "Geo.mean")
+
+# Scatter plot: maxTuW vs Geo.mean
+plot(D$maxTuW, D$Geo.mean, main = "Scatter plot: maxTuW vs Geo.mean", xlab = "maxTuW", ylab = "Geo.mean")
+
+# Histogram for Geo.mean
+hist(D$Geo.mean, main = "Histogram: Geo.mean", xlab = "Geo.mean", ylab = "Frequency")
+
+# Histogram for Volatility
+hist(D$Volatility, main = "Histogram: Volatility", xlab = "Volatility", ylab = "Frequency")
+
+# Histogram for maxTuW
+hist(D$maxTuW, main = "Histogram: maxTuW", xlab = "maxTuW", ylab = "Frequency")
+
+# Boxplot for Geo.mean
+boxplot(D$Geo.mean, main = "Boxplot for Geo.mean", xlab = "Geo.mean")
+
+# Boxplot for maxTuW
+boxplot(D$maxTuW, main = "Boxplot for maxTuW", xlab = "maxTuW")
+
+# Boxplot for Volatility
+boxplot(D$Volatility, main = "Boxplot for Volatility", xlab = "Volatility")
+
+################################################################################
+
+# Subset containing only AGG, VAW, IWN and SPY (for validation)
+D_test <- subset(D, ETF %in% c("AGG","VAW","IWN","SPY"))
+
+# Subset containing only the 91 remaining ETFs (for model estimation)
+D_model <- subset(D, !(ETF %in% c("AGG","VAW","IWN","SPY")))
+
+################################################################################
+
+# Estimate multiple linear regression model
+fit <- lm(Geo.mean ~ Volatility + maxTuW, data = D_model)
+
+# Show parameter estimates etc.
+summary(fit)
+
+################################################################################
+
+# Plots for model validation
+
+# Observations against fitted values
+plot(fit$fitted.values, D_model$Geo.mean, xlab = "Fitted values",     
+     ylab = "Geom. average rate of return")
+
+# Residuals against each of the explanatory variables
+plot(D_model$maxTuW, fit$residuals, 
+     xlab = "maxTuW", ylab = "Residuals")
+lines(lowess(D_model$maxTuW, fit$residuals))
+
+# Residuals against each of the explanatory variables
+plot(D_model$Volatility, fit$residuals, 
+     xlab = "Volatility", ylab = "Residuals")
+lines(lowess(D_model$Volatility, fit$residuals))
+
+# Residuals against fitted values
+plot(fit$fitted.values, fit$residuals, xlab = "Fitted values", 
+     ylab = "Residuals")
+lines(lowess(fit$fitted.values, fit$residuals))
+
+# Normal QQ-plot of the residuals
+qqnorm(fit$residuals, ylab = "Residuals", xlab = "Z-scores", 
+       main = "")
+qqline(fit$residuals)
+
+# Wally plot
+qqnorm.wally <- function(x, y , ...) { qqnorm (y, ...); qqline(y, ...);}
+wallyplot(fit, FUN = qqnorm.wally, main = "")
+
+################################################################################
+
+# Confidence intervals for the model coefficients
+confint(fit, level = 0.95)
+
+################################################################################
+
+t_obs <- (-0.0351310 + 0.06)/0.0097229
+df <- 88
+
+p <- (1 - pt(t_obs, df))*2
+
+################################################################################
+
+# Using backwards selection
+D_model$maxTuW2 <- D_model$maxTuW^2
+
+fit <- lm(Geo.mean ~ Volatility, data = D_model)
+
+summary(fit)
+
+# Implementing non-linearity
+D_model$maxTuW2 <- D_model$maxTuW^2
+D_model$maxTuW3 <- D_model$maxTuW^3
+D_model$Volatility2 <- D_model$Volatility^2
+D_model$Volatility3 <- D_model$Volatility^3
+
+# Trying different variations
+fit <- lm(Geo.mean ~ Volatility + maxTuW + maxTuW2, data = D_model)
+fit <- lm(Geo.mean ~ Volatility + Volatility2 + maxTuW + maxTuW2, data = D_model)
+fit <- lm(Geo.mean ~ Volatility + Volatility2, data = D_model)
+
+summary(fit)
+
+################################################################################
+
+# The final model
+final_fit <- lm(Geo.mean ~ Volatility + Volatility2, data = D_model)
+
+# Add Volatility2 to D_test
+D_test$Volatility2 <- D_test$Volatility^2
+
+# Predictions and 95% prediction intervals
+pred <- predict(final_fit, newdata = D_test, 
+                interval = "prediction", level = 0.95)
+
+# Observed values and prediction intervals
+cbind(id = D_test$ETF, Geo.mean = D_test$Geo.mean, pred)
+
+# Predictions and 95% confidence intervals
+pred <- predict(final_fit, newdata = D_test, 
+                interval = "confidence", level = 0.95)
+
+# Observed values and confidence intervals
+cbind(id = D_test$ETF, Geo.mean = D_test$Geo.mean, pred)
+
